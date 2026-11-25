@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulator — Kopi Senja (DEMO)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #0b141a; color: #e9edef; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+  header { background: #202c33; padding: 12px 16px; }
+  header h1 { font-size: 16px; margin: 0; }
+  header p { font-size: 12px; color: #8696a0; margin: 2px 0 0; }
+  #chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 75%; padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; line-height: 1.45; font-size: 14px; }
+  .user { align-self: flex-end; background: #005c4b; }
+  .bot { align-self: flex-start; background: #202c33; }
+  .note { align-self: center; font-size: 12px; color: #8696a0; }
+  form { display: flex; gap: 8px; padding: 12px; background: #202c33; }
+  input { flex: 1; padding: 10px; border: none; border-radius: 8px; background: #2a3942; color: #e9edef; font-size: 14px; }
+  button { padding: 10px 18px; border: none; border-radius: 8px; background: #00a884; color: #fff; font-weight: 600; cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px; background: #202c33; }
+  .chips button { background: #2a3942; color: #e9edef; font-weight: 400; padding: 6px 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>☕ Kopi Senja — Simulator Bot WA</h1>
+  <p>DEMO — bukan WhatsApp nyata. Logika bot sama dengan yang dipakai webhook &amp; workflow n8n.</p>
+</header>
+<div id="chat"></div>
+<div class="chips" id="chips"></div>
+<form id="form">
+  <input id="input" type="text" placeholder="Tulis pesan pelanggan…" autocomplete="off">
+  <button type="submit">Kirim</button>
+</form>
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const PHONE = '6281230000000';
+const SUGGESTIONS = ['halo', 'katalog', 'harga arabika gayo', 'jam buka', 'ongkir pekanbaru', 'order kopi susu gula aren 2', 'admin'];
+const chips = document.getElementById('chips');
+SUGGESTIONS.forEach(s => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = s;
+  b.onclick = () => send(s);
+  chips.appendChild(b);
+});
+function add(text, cls) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls; d.textContent = text;
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+async function send(text) {
+  if (!text.trim()) return;
+  add(text, 'user'); input.value = '';
+  const res = await fetch('/api/simulate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: PHONE, message: text }),
+  });
+  const data = await res.json();
+  add(data.reply || data.error, 'bot');
+  if (data.escalate) add('🔔 Bot menyerahkan percakapan ke admin manusia.', 'note');
+  if (data.order) add('🧾 Order ' + data.order.number + ' tercatat.', 'note');
+}
+document.getElementById('form').addEventListener('submit', e => { e.preventDefault(); send(input.value); });
+add('Halo! Selamat datang di Kopi Senja — toko kopi rumahan di Pekanbaru.\n\nKetik "katalog" untuk melihat produk, atau coba tombol contoh di bawah.', 'bot');
+</script>
+</body>
+</html>

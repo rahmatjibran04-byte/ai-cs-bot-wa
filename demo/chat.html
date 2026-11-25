@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Demo Bot AI CS WhatsApp — Kopi Senja</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:720px; height:1280px; overflow:hidden; background:#0b141a;
+    font-family:"DejaVu Sans","Liberation Sans",Arial,sans-serif; }
+  /* ---------- phone screen ---------- */
+  #screen { position:relative; width:720px; height:1280px; background:#efeae2; overflow:hidden; }
+  /* status bar */
+  #statusbar { height:52px; background:#075e54; color:#fff; display:flex; align-items:center;
+    justify-content:space-between; padding:0 26px; font-size:24px; font-weight:bold; }
+  #statusbar .icons { font-size:22px; letter-spacing:4px; }
+  /* header */
+  #header { height:104px; background:#075e54; color:#fff; display:flex; align-items:center;
+    padding:0 18px; gap:16px; box-shadow:0 2px 6px rgba(0,0,0,.25); position:relative; z-index:5; }
+  .avatar { width:72px; height:72px; border-radius:50%; background:#6f4e37; color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:38px; flex-shrink:0; }
+  .avatar.owner { background:#2a7a5b; font-size:30px; }
+  #chatname { font-size:30px; font-weight:bold; line-height:1.2; }
+  #chatsub { font-size:21px; color:#cfe8d8; line-height:1.3; }
+  .headtext { flex:1; min-width:0; }
+  #demochip { background:#ffd60a; color:#111; font-weight:bold; font-size:20px;
+    padding:8px 14px; border-radius:20px; letter-spacing:1px; }
+  /* chat area */
+  #chat { position:absolute; top:156px; bottom:0; left:0; right:0; overflow:hidden;
+    padding:18px 20px 30px; background-color:#efeae2;
+    background-image:radial-gradient(rgba(0,0,0,.045) 1.5px, transparent 1.5px);
+    background-size:26px 26px; }
+  .datechip { display:flex; justify-content:center; margin:6px 0 18px; }
+  .datechip span { background:#d9e8f5; color:#4a5a66; font-size:19px; padding:8px 18px;
+    border-radius:12px; box-shadow:0 1px 2px rgba(0,0,0,.15); }
+  .dividerchip { display:flex; justify-content:center; margin:22px 0 18px; }
+  .dividerchip span { background:#075e54; color:#fff; font-size:20px; font-weight:bold;
+    padding:9px 20px; border-radius:20px; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .msg { max-width:82%; padding:14px 16px 10px; border-radius:14px; margin-bottom:14px;
+    font-size:25px; line-height:1.45; color:#111b21; box-shadow:0 1px 2px rgba(0,0,0,.18);
+    position:relative; clear:both; word-wrap:break-word;
+    animation:pop .25s ease-out; }
+  @keyframes pop { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:none; } }
+  .msg.in { background:#fff; float:left; border-top-left-radius:4px; }
+  .msg.out { background:#dcf8c6; float:right; border-top-right-radius:4px; }
+  .msg .meta { display:block; text-align:right; font-size:17px; color:#8696a0; margin-top:6px; }
+  .msg .meta .ticks { color:#53bdeb; font-size:19px; }
+  .msg .botlabel { display:block; font-size:19px; font-weight:bold; color:#00a884; margin-bottom:4px; }
+  .typing { background:#fff; float:left; border-top-left-radius:4px; max-width:40%;
+    padding:20px 22px; border-radius:14px; margin-bottom:14px; box-shadow:0 1px 2px rgba(0,0,0,.18); }
+  .typing span { display:inline-block; width:12px; height:12px; border-radius:50%;
+    background:#8696a0; margin-right:7px; animation:blink 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay:.2s; } .typing span:nth-child(3) { animation-delay:.4s; }
+  @keyframes blink { 0%,60%,100% { opacity:.3; transform:translateY(0); } 30% { opacity:1; transform:translateY(-5px); } }
+  /* ---------- full-screen cards ---------- */
+  .card { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:60px;
+    background:#0a0a0f; color:#fff; }
+  .card .kicker { color:#ffd60a; font-size:26px; font-weight:bold; letter-spacing:6px; margin-bottom:28px; }
+  .card h1 { font-size:56px; line-height:1.25; font-weight:bold; margin-bottom:26px; }
+  .card h1 .yl { color:#ffd60a; }
+  .card p { font-size:28px; line-height:1.5; color:#cfd2dc; }
+  .card .rule { width:120px; height:6px; background:#ffd60a; border-radius:3px; margin:34px 0; }
+  .card .foot { position:absolute; bottom:64px; font-size:22px; color:#8a8f9c; }
+  #endcard { display:none; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="screen">
+  <div id="statusbar"><span>18:30</span><span class="icons">&#9679;&#9679;&#9679; &#9633; &#9646;</span></div>
+  <div id="header">
+    <div class="avatar" id="avatar">☕</div>
+    <div class="headtext">
+      <div id="chatname">Kopi Senja</div>
+      <div id="chatsub">Bot AI &bull; online</div>
+    </div>
+    <div id="demochip">DEMO</div>
+  </div>
+  <div id="chat">
+    <div class="datechip"><span>Hari ini</span></div>
+    <div id="feed"></div>
+  </div>
+
+  <div class="card" id="titlecard">
+    <div class="kicker">DEMO</div>
+    <h1>Bot AI Customer Service <span class="yl">WhatsApp</span></h1>
+    <div class="rule"></div>
+    <p>Toko Kopi Senja &mdash; contoh toko kopi di Pekanbaru<br>Menjawab stok, harga, ongkir &amp; mencatat pesanan otomatis</p>
+    <div class="foot">Video demonstrasi &bull; bukan percakapan nyata</div>
+  </div>
+
+  <div class="card" id="endcard">
+    <div class="kicker">DEMO</div>
+    <h1>Bot AI CS WhatsApp<br>untuk <span class="yl">toko Anda</span></h1>
+    <div class="rule"></div>
+    <p>Demo &mdash; bukan order nyata.<br>Semua nama, harga, dan pesanan dalam video ini adalah contoh.</p>
+    <div class="foot">Kopi Senja &bull; contoh toko fiktif &bull; Pekanbaru</div>
+  </div>
+</div>
+
+<script>
+const feed = document.getElementById('feed');
+const chat = document.getElementById('chat');
+function scrollBottom(){ chat.scrollTop = chat.scrollHeight; }
+function showTyping(){
+  const t = document.createElement('div');
+  t.className = 'typing'; t.id = 'typing';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  feed.appendChild(t); scrollBottom();
+}
+function hideTyping(){ const t = document.getElementById('typing'); if (t) t.remove(); }
+function addMsg(side, html, time, ticks){
+  const m = document.createElement('div');
+  m.className = 'msg ' + side;
+  const label = side === 'in' ? '<span class="botlabel">Kopi Senja &bull; Bot AI</span>' : '';
+  const tk = ticks ? ' <span class="ticks">&#10003;&#10003;</span>' : '';
+  m.innerHTML = label + html + '<span class="meta">' + time + tk + '</span>';
+  feed.appendChild(m); scrollBottom();
+}
+function addDivider(text){
+  const d = document.createElement('div');
+  d.className = 'dividerchip';
+  d.innerHTML = '<span>' + text + '</span>';
+  feed.appendChild(d); scrollBottom();
+}
+/* ---- jadwal (ms) — total rekaman 64 detik ---- */
+const steps = [
+  [3000,  () => { document.getElementById('titlecard').classList.add('hidden'); }],
+  [3500,  showTyping],
+  [5000,  () => { hideTyping(); addMsg('out', 'Halo, masih ada Kopi Arabika Gayo 250g?', '18:31', true); }],
+  [8500,  showTyping],
+  [10500, () => { hideTyping(); addMsg('in', 'Halo Rani! Masih ada kak. Kopi Arabika Gayo 250g &mdash; Rp65.000, stok 24. Mau pesan berapa?', '18:31', false); }],
+  [14500, showTyping],
+  [16000, () => { hideTyping(); addMsg('out', '2 bungkus. Ongkir ke Pekanbaru berapa?', '18:32', true); }],
+  [19500, showTyping],
+  [22000, () => { hideTyping(); addMsg('in', 'Ongkir ke Pekanbaru Rp10.000, tapi gratis ongkir untuk pembelian di atas Rp100.000. Total 2 bungkus = Rp130.000, gratis ongkir. Pembayaran bisa QRIS atau transfer BCA. Lanjut ke pemesanan?', '18:32', false); }],
+  [26500, showTyping],
+  [28000, () => { hideTyping(); addMsg('out', 'Ya, lanjut. Saya transfer BCA.', '18:33', true); }],
+  [31000, showTyping],
+  [33500, () => { hideTyping(); addMsg('in', 'Baik, order #KS-1042 tercatat: 2&times; Arabika Gayo 250g = Rp130.000 (gratis ongkir). Silakan transfer ke BCA 1234567890 a.n. Kopi Senja, lalu kirim bukti di sini. Terima kasih!', '18:33', false); }],
+  [42000, () => {
+      document.getElementById('chatname').textContent = 'Kopi Senja \u2014 Owner';
+      document.getElementById('chatsub').textContent = 'Rekap harian \u2022 Bot AI';
+      document.getElementById('avatar').textContent = '\u2709';
+      document.getElementById('avatar').classList.add('owner');
+      addDivider('Rekap untuk Owner');
+  }],
+  [43000, showTyping],
+  [45500, () => { hideTyping(); addMsg('in', 'Rekap hari ini &mdash; Kopi Senja: 14 chat, 6 order (Rp812.000), 2 belum bayar &mdash; follow-up sudah dikirim.', '18:35', false); }],
+  [60000, () => { document.getElementById('endcard').style.display = 'flex'; }],
+];
+steps.forEach(([t, fn]) => setTimeout(fn, t));
+</script>
+</body>
+</html>

@@ -405,7 +405,7 @@
           "mode": "url",
           "value": "={{ $env.SHEETS_ID }}"
         },
-        "operation": "lookup",
+        "operation": "read",
         "options": {},
         "sheetName": "Produk"
       },
@@ -432,7 +432,7 @@
           "mode": "url",
           "value": "={{ $env.SHEETS_ID }}"
         },
-        "operation": "lookup",
+        "operation": "read",
         "options": {},
         "sheetName": "FAQ"
       },
@@ -452,7 +452,7 @@
     {
       "id": "a1b2c3d4-0006-4000-8000-000000000006",
       "name": "AI Agent (OpenAI)",
-      "notes": "Butuh kredensial OpenAI di n8n. Model saran: gpt-4o-mini (murah). Perbaikan: PESAN PELANGGAN kini dibaca dari node Parse (dulu $json.text — setelah lookup FAQ itu berisi baris FAQ, bukan pesan pelanggan). Bila pelanggan konfirmasi order, agent WAJIB mengakhiri balasan dengan baris marker ORDER_CONFIRMED (lihat prompt) — node 'Bersihkan Balasan' mem-parse marker itu menjadi data order. Bila OPENAI_ENABLED=false, jalur ini dilewati dan 'Jawaban Deterministik (tanpa AI)' yang menjawab.",
+      "notes": "Butuh kredensial OpenAI di n8n. Model saran: gpt-4o-mini (murah). Perbaikan: PESAN PELANGGAN kini dibaca dari node Parse (dulu $json.text — setelah node FAQ membaca semua baris FAQ itu berisi baris FAQ, bukan pesan pelanggan). Bila pelanggan konfirmasi order, agent WAJIB mengakhiri balasan dengan baris marker ORDER_CONFIRMED (lihat prompt) — node 'Bersihkan Balasan' mem-parse marker itu menjadi data order. Bila OPENAI_ENABLED=false, jalur ini dilewati dan 'Jawaban Deterministik (tanpa AI)' yang menjawab.",
       "parameters": {
         "options": {
           "systemMessage": "Kamu asisten CS WhatsApp yang ramah, singkat, dan jujur. Jangan pernah mengarang harga atau stok. Selalu pakai format Rp dengan titik ribuan."
@@ -785,7 +785,7 @@
           "mode": "url",
           "value": "={{ $env.SHEETS_ID }}"
         },
-        "operation": "lookup",
+        "operation": "read",
         "options": {},
         "sheetName": "Orders"
       },
@@ -802,7 +802,7 @@
       "name": "Buat Nomor Order",
       "notes": "Hitung jumlah baris Orders + 1 -> nomor '#KS-000N' (pad 4, prefix KS tetap seperti src/store.js). Ganti placeholder {{ORDER_NUMBER}} di balasan dengan nomor baru. KETERBATASAN: race condition — bila 2 order masuk bersamaan, keduanya bisa membaca jumlah baris yang sama dan mendapat nomor yang sama; untuk volume toko kecil risikonya rendah, untuk volume besar pakai atomic counter.",
       "parameters": {
-        "jsCode": "// Hitung nomor order berikutnya dari jumlah baris tab Orders.\n// Prefix tetap \"KS\" (sama seperti src/store.js nextOrderNumber()).\n// Ganti placeholder {{ORDER_NUMBER}} di balasan dengan nomor baru.\n// Catatan: node \"Baca Orders\" memakai alwaysOutputData, jadi bila tab masih\n// kosong $input berisi satu item kosong — hanya baris yang punya `number`\n// yang dihitung.\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.number);\nconst number = '#KS-' + String(rows.length + 1).padStart(4, '0');\nconst cleaned = $('Bersihkan Balasan').first().json;\nconst marker = cleaned.orderMarker || {};\nconst date = new Date().toISOString().slice(0, 10);\nconst reply = String(cleaned.reply || '')\n  .replace(/\\{\\{\\s*ORDER_NUMBER\\s*\\}\\}/g, number)\n  .replace(/\\[\\[ORDER_NUMBER\\]\\]/g, number);\nreturn [{ json: {\n  reply,\n  order: {\n    number,\n    date,\n    phone: $('Parse Pesan Masuk').first().json.from,\n    customerName: marker.customerName || '',\n    items: marker.items || '',\n    subtotal: marker.subtotal || 0,\n    shipping: marker.shipping || 0,\n    total: marker.total || 0,\n    payment: marker.payment || '',\n    status: 'BELUM BAYAR',\n    address: marker.address || '',\n  },\n} }];"
+        "jsCode": "// Hitung nomor order berikutnya dari nomor MAKSIMUM yang sudah ada (max+1),\n// BUKAN dari jumlah baris — nomor tidak boleh duplikat bila ada baris yang\n// dihapus dari tab Orders (mis. baris 0001 + 0009 -> #KS-0010).\n// Prefix tetap \"KS\" (sama seperti src/store.js nextOrderNumber()).\n// Ganti placeholder {{ORDER_NUMBER}} di balasan dengan nomor baru.\n// Catatan: node \"Baca Orders\" memakai alwaysOutputData, jadi bila tab masih\n// kosong $input berisi satu item kosong — hanya baris yang punya `number`\n// yang dihitung.\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.number);\nconst max = rows.reduce((m, r) => {\n  const suf = String(r.number).match(/(\\d+)\\s*$/);\n  const n = suf ? parseInt(suf[1], 10) : NaN;\n  return Number.isFinite(n) ? Math.max(m, n) : m;\n}, 0);\nconst number = '#KS-' + String(max + 1).padStart(4, '0');\nconst cleaned = $('Bersihkan Balasan').first().json;\nconst marker = cleaned.orderMarker || {};\nconst date = new Date().toISOString().slice(0, 10);\nconst reply = String(cleaned.reply || '')\n  .replace(/\\{\\{\\s*ORDER_NUMBER\\s*\\}\\}/g, number)\n  .replace(/\\[\\[ORDER_NUMBER\\]\\]/g, number);\nreturn [{ json: {\n  reply,\n  order: {\n    number,\n    date,\n    phone: $('Parse Pesan Masuk').first().json.from,\n    customerName: marker.customerName || '',\n    items: marker.items || '',\n    subtotal: marker.subtotal || 0,\n    shipping: marker.shipping || 0,\n    total: marker.total || 0,\n    payment: marker.payment || '',\n    status: 'BELUM BAYAR',\n    address: marker.address || '',\n  },\n} }];"
       },
       "position": [
         2420,
@@ -841,7 +841,7 @@
           "mode": "url",
           "value": "={{ $env.SHEETS_ID }}"
         },
-        "operation": "lookup",
+        "operation": "read",
         "options": {},
         "sheetName": "Orders"
       },
@@ -858,7 +858,7 @@
       "name": "Hitung Rekap Harian",
       "notes": "Port dailyRecap() + unpaidFollowUp() dari src/bot.js. Keluarkan {recapText, unpaid: [...]}. Satu item per order unpaid dibuat node 'Uraikan Order Belum Bayar' (SplitInBatches hanya membagi item).",
       "parameters": {
-        "jsCode": "// Port logika dailyRecap() + unpaidFollowUp() dari src/bot.js ke Code node n8n.\n// Input: baris-baris tab Orders (kolom: number, date, phone, customer_name,\n// items, subtotal, shipping, total, payment, status, address).\n// Keluaran: { recapText, unpaid: [{number, phone, customerName, total, followUpText}] }.\n// Catatan tanggal: `date` di Sheets adalah tanggal ISO (UTC, sama seperti\n// dateKey di src/store.js); cron 21.00 WIB = 14.00 UTC di hari yang sama,\n// jadi filter tanggal hari ini tetap benar.\nconst STORE_NAME = (typeof $env !== 'undefined' && $env.STORE_NAME) || 'Kopi Senja';\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.number);\nconst today = new Date().toISOString().slice(0, 10);\nconst rp = (n) => 'Rp' + Number(n || 0).toLocaleString('id-ID');\nconst list = rows.filter((o) => String(o.date || '').slice(0, 10) === today);\nconst unpaid = list.filter((o) => o.status === 'BELUM BAYAR');\nconst paid = list.filter((o) => o.status !== 'BELUM BAYAR');\nconst revenue = paid.reduce((s, o) => s + Number(o.total || 0), 0);\nconst lines = [\n  `📊 *Rekap Harian ${STORE_NAME} — ${today}*`,\n  '',\n  `Total order: ${list.length}`,\n  `Sudah bayar: ${paid.length} (${rp(revenue)})`,\n  `Belum bayar: ${unpaid.length}`,\n  '',\n];\nfor (const o of list) {\n  lines.push(`• ${o.number} — ${o.customer_name || o.phone} — ${rp(o.total)} — ${o.status}`);\n}\nif (!list.length) lines.push('Belum ada order hari ini.');\nreturn [{ json: {\n  recapText: lines.join('\\n'),\n  unpaid: unpaid.map((o) => ({\n    number: o.number,\n    phone: o.phone,\n    customerName: o.customer_name || '',\n    total: Number(o.total || 0),\n    followUpText:\n      `Halo Kak ${o.customer_name || ''}! 👋\\n\\n` +\n      `Kami dari *${STORE_NAME}* mengingatkan pesanan *${o.number}* ` +\n      `(${rp(o.total)}) belum dibayar. ` +\n      `Pesanan akan kami tahan sampai akhir hari ini. ` +\n      `Bila sudah transfer, silakan kirim bukti pembayarannya ke chat ini ya. Terima kasih! ☕`,\n  })),\n} }];"
+        "jsCode": "// Port logika dailyRecap() + unpaidFollowUp() dari src/bot.js ke Code node n8n.\n// Input: baris-baris tab Orders (kolom: number, date, phone, customer_name,\n// items, subtotal, shipping, total, payment, status, address).\n// Keluaran: { recapText, unpaid: [{number, phone, customerName, total, followUpText}] }.\n// Catatan tanggal: `date` di Sheets adalah tanggal ISO (UTC, sama seperti\n// dateKey di src/store.js); cron 21.00 WIB = 14.00 UTC di hari yang sama,\n// jadi filter tanggal hari ini tetap benar.\nconst STORE_NAME = (typeof $env !== 'undefined' && $env.STORE_NAME) || 'Kopi Senja';\nconst rows = $input.all().map((i) => i.json).filter((r) => r && r.number);\nconst today = new Date().toISOString().slice(0, 10);\nconst rp = (n) => 'Rp' + Number(n || 0).toLocaleString('id-ID');\nconst list = rows.filter((o) => String(o.date || '').slice(0, 10) === today);\n// Status dinormalisasi (trim + huruf besar) sebelum dibandingkan, supaya\n// 'belum bayar' (lowercase) tetap dihitung belum bayar dan 'BATAL' tidak\n// ikut terhitung sudah bayar / masuk revenue.\nconst statusOf = (o) => String(o.status || '').trim().toUpperCase();\nconst unpaid = list.filter((o) => statusOf(o) === 'BELUM BAYAR');\nconst paid = list.filter((o) => statusOf(o) !== 'BELUM BAYAR' && statusOf(o) !== 'BATAL');\nconst revenue = paid.reduce((s, o) => s + Number(o.total || 0), 0);\nconst lines = [\n  `📊 *Rekap Harian ${STORE_NAME} — ${today}*`,\n  '',\n  `Total order: ${list.length}`,\n  `Sudah bayar: ${paid.length} (${rp(revenue)})`,\n  `Belum bayar: ${unpaid.length}`,\n  '',\n];\nfor (const o of list) {\n  lines.push(`• ${o.number} — ${o.customer_name || o.phone} — ${rp(o.total)} — ${o.status}`);\n}\nif (!list.length) lines.push('Belum ada order hari ini.');\nreturn [{ json: {\n  recapText: lines.join('\\n'),\n  unpaid: unpaid.map((o) => ({\n    number: o.number,\n    phone: o.phone,\n    customerName: o.customer_name || '',\n    total: Number(o.total || 0),\n    followUpText:\n      `Halo Kak ${o.customer_name || ''}! 👋\\n\\n` +\n      `Kami dari *${STORE_NAME}* mengingatkan pesanan *${o.number}* ` +\n      `(${rp(o.total)}) belum dibayar. ` +\n      `Pesanan akan kami tahan sampai akhir hari ini. ` +\n      `Bila sudah transfer, silakan kirim bukti pembayarannya ke chat ini ya. Terima kasih! ☕`,\n  })),\n} }];"
       },
       "position": [
         440,

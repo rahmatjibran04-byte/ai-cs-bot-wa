@@ -12,7 +12,7 @@
  *
  * Yang TIDAK bisa diuji di sini (butuh instance n8n live — lihat README):
  * import sungguhan ke n8n, eksekusi end-to-end, node WhatsApp Trigger
- * resmi, pengiriman WhatsApp, dan lookup Sheets yang sebenarnya.
+ * resmi, pengiriman WhatsApp, dan pembacaan Sheets yang sebenarnya.
  */
 'use strict';
 
@@ -31,7 +31,7 @@ const config = JSON.parse(
 const nodesByName = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
 const codeOf = (name) => nodesByName[name].parameters.jsCode;
 
-// Produk + FAQ dalam bentuk baris Sheets (seperti yang dikembalikan node lookup).
+// Produk + FAQ dalam bentuk baris Sheets (seperti yang dikembalikan node read).
 const productRows = config.products.map((p) => ({ ...p }));
 const faqRows = config.faq.map((f) => ({
   topic: f.topic,
@@ -178,6 +178,26 @@ test('struktur: trigger resmi + kredensial placeholder lengkap', () => {
   assert.match(nodesByName['AI Agent (OpenAI)'].parameters.text, /Parse Pesan Masuk/);
 });
 
+test('struktur: node baca Sheets memakai operation "read" (bukan lookup tanpa kriteria)', () => {
+  // Keempat node ini membaca SEMUA baris tabnya, jadi operasi yang benar
+  // adalah "read" (filter kosong). "lookup" tanpa lookupColumn/lookupValue
+  // tidak valid untuk tujuan ini.
+  const expected = {
+    'Knowledge Base: Katalog (Sheets)': 'Produk',
+    'Knowledge Base: FAQ (Sheets)': 'FAQ',
+    'Baca Orders': 'Orders',
+    'Baca Orders (Rekap)': 'Orders',
+  };
+  for (const [name, sheetName] of Object.entries(expected)) {
+    const params = nodesByName[name].parameters;
+    assert.equal(params.operation, 'read', name);
+    assert.equal(params.sheetName, sheetName, name);
+    assert.ok(!('lookupColumn' in params), `${name} masih membawa lookupColumn`);
+    assert.ok(!('lookupValue' in params), `${name} masih membawa lookupValue`);
+    assert.ok(!('filters' in params), `${name} masih membawa filters`);
+  }
+});
+
 test('struktur: mapping Catat Order sesuai header tab Orders', () => {
   const value = nodesByName['Catat Order ke Sheets'].parameters.columns.value;
   assert.deepEqual(
@@ -318,6 +338,14 @@ test('Buat Nomor Order: tab kosong -> #KS-0001 (input [] dan [{}])', () => {
   assert.equal(orderNumberRun([{}])[0].json.order.number, '#KS-0001');
 });
 
+test('Buat Nomor Order: max+1 — baris 0001 + 0009 -> #KS-0010 (bukan #KS-0003)', () => {
+  // Nomor dihitung dari maksimum suffix yang ada, bukan jumlah baris:
+  // bila baris tengah dihapus, nomor baru tidak boleh duplikat nomor lama.
+  const out = orderNumberRun([{ number: '#KS-0001' }, { number: '#KS-0009' }]);
+  assert.equal(out[0].json.order.number, '#KS-0010');
+  assert.match(out[0].json.reply, /#KS-0010/);
+});
+
 test('Siapkan Balasan Order: meneruskan reply dari Buat Nomor Order', () => {
   const out = runCode(codeOf('Siapkan Balasan Order'), {
     input: [{ json: { spreadsheetId: 'x', updates: {} } }], // hasil API Sheets
@@ -365,6 +393,25 @@ test('Hitung Rekap Harian: tanpa order -> rekap kosong + unpaid []', () => {
   assert.deepEqual(out.unpaid, []);
 });
 
+test('Hitung Rekap Harian: BATAL + "belum bayar" lowercase tidak masuk revenue', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = [
+    { number: '#KS-0001', date: today, phone: '62811', customer_name: 'Andi', total: 30000, payment: 'QRIS', status: 'BATAL' },
+    { number: '#KS-0002', date: today, phone: '62812', customer_name: 'Siti', total: 99999, payment: 'QRIS', status: 'belum bayar' },
+    { number: '#KS-0003', date: today, phone: '62813', customer_name: 'Rina', total: 50000, payment: 'QRIS', status: 'SUDAH BAYAR' },
+  ];
+  const out = recapRun(rows)[0].json;
+  assert.match(out.recapText, /Total order: 3/);
+  // Revenue hanya dari 1 order SUDAH BAYAR (Rp50.000) — BATAL Rp30.000 dan
+  // 'belum bayar' Rp99.999 tidak masuk. (Baris detail tetap mencantumkan
+  // semua order, jadi cek baris ringkasannya, bukan seluruh teks.)
+  assert.match(out.recapText, /Sudah bayar: 1 \(Rp50\.000\)/);
+  assert.match(out.recapText, /Belum bayar: 1/);
+  assert.match(out.recapText, /#KS-0001 — Andi — Rp30\.000 — BATAL/);
+  assert.equal(out.unpaid.length, 1);
+  assert.equal(out.unpaid[0].number, '#KS-0002');
+});
+
 test('Uraikan Order Belum Bayar: 1 item per order; kosong -> []', () => {
   const withUnpaid = runCode(codeOf('Uraikan Order Belum Bayar'), {
     input: [{ json: { recapText: 'x' } }],
@@ -408,6 +455,11 @@ test('Jawaban Deterministik: sapaan, katalog, harga, FAQ, tak dikenal', () => {
   assert.equal(deterministicRun('halo').orderMarker, null);
 });
 
+// Catatan (perilaku SENGAJA, port setia src/bot.js matchProduct): query order
+// satu kata pendek tidak dikenali — mis. "order v60 3" tidak cocok dengan
+// "V60 Dripper Plastik" karena matchProduct butuh >=2 kata cocok dari nama
+// produk (kata pendek seperti "v60" hanya dihitung 1). Jangan "diperbaiki"
+// tanpa mengubah src/bot.js juga.
 test('Jawaban Deterministik: intent order dikenali tapi diarahkan ke admin', () => {
   const r = deterministicRun('order kopi susu gula aren 2');
   assert.match(r.reply, /Rp70\.000/);

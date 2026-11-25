@@ -44,6 +44,10 @@ ai-cs-bot-wa/
 └── README.md
 ```
 
+## Video demo
+
+`demo/demo-bot-wa-kopi-senja.mp4` (64 detik, 720×1280) — rekaman simulator web: sapaan → katalog → tanya harga → order → konfirmasi → rekap. Alur di video sama persis dengan simulator (`npm start` lalu buka http://localhost:3000) dan dengan skrip `test/conversation.txt`.
+
 ## Cara pakai (demo, tanpa akun apa pun)
 
 ```bash

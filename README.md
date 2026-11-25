@@ -201,12 +201,14 @@ Set `OPENAI_ENABLED=false` di ENV n8n: node "AI Agent Aktif?" mengalihkan semua 
 
 ### Keterbatasan yang diketahui (jujur)
 
-- **Belum diuji import live ke n8n.** Struktur JSON + logika Code node sudah diuji lokal (`test/workflow-test.js`, 26 test), tapi import sungguhan, eksekusi end-to-end, node WhatsApp Trigger resmi, dan lookup Sheets yang sebenarnya belum bisa diverifikasi tanpa instance n8n live dan akun Meta.
+- **Belum diuji import live ke n8n.** Struktur JSON + logika Code node sudah diuji lokal (`test/workflow-test.js`, 29 test), tapi import sungguhan, eksekusi end-to-end, node WhatsApp Trigger resmi, dan pembacaan Sheets yang sebenarnya belum bisa diverifikasi tanpa instance n8n live dan akun Meta.
 - **Follow-up di luar jendela 24 jam butuh template message Meta yang disetujui** — teks bebas bisa ditolak Meta bila pelanggan terakhir chat > 24 jam lalu. Untuk follow-up lewat 24 jam, ganti node "Follow-up Belum Bayar" dengan pengiriman template message.
-- **Race condition nomor urut:** bila 2 order masuk bersamaan, keduanya bisa membaca jumlah baris Orders yang sama dan mendapat nomor yang sama. Untuk volume toko kecil risikonya rendah; untuk volume besar pakai atomic counter (mis. sel khusus di Sheets / kolom counter yang di-lock).
+- **Race condition nomor urut:** bila 2 order masuk bersamaan, keduanya bisa membaca nomor maksimum Orders yang sama dan mendapat nomor yang sama. Untuk volume toko kecil risikonya rendah; untuk volume besar pakai atomic counter (mis. sel khusus di Sheets / kolom counter yang di-lock). Nomor order dihitung max+1 dari nomor yang sudah ada (bukan jumlah baris), jadi baris yang dihapus tidak menyebabkan nomor duplikat.
 - **Respond 200 + WhatsApp Trigger:** node Respond 200 dipertahankan di ketiga cabang (balasan, eskalasi, non-teks) sesuai desain; bila saat import live ternyata trigger resmi sudah menjawab 200 sendiri dan node ini error, hapus node Respond 200 — verifikasi saat uji live.
-- **Perbaikan prompt AI:** prompt lama memakai `$json.text` untuk pesan pelanggan — setelah lookup FAQ, `$json` berisi baris FAQ, bukan pesan pelanggan. Prompt baru memakai `{{ $('Parse Pesan Masuk').first().json.text }}`.
+- **Perbaikan prompt AI:** prompt lama memakai `$json.text` untuk pesan pelanggan — setelah node FAQ membaca semua baris FAQ, `$json` berisi baris FAQ, bukan pesan pelanggan. Prompt baru memakai `{{ $('Parse Pesan Masuk').first().json.text }}`.
 - **Node "Baca Orders" memakai `alwaysOutputData`:** bila tab Orders masih kosong, node tetap mengeluarkan satu item kosong supaya "Buat Nomor Order" tetap jalan (tanpa ini rantai berhenti karena Code node tidak menerima item).
+- **Node baca Sheets memakai operasi `read`:** keempat node baca ("Knowledge Base: Katalog", "Knowledge Base: FAQ", "Baca Orders", "Baca Orders (Rekap)") membaca semua baris tabnya — operasi `lookup` tanpa kriteria tidak dipakai. Status order di rekap harian dinormalisasi (trim + huruf besar): `BATAL` tidak masuk revenue, dan `belum bayar` (lowercase) tetap dihitung belum bayar.
+- **Pencocokan produk satu kata pendek (perilaku disengaja):** mode deterministik memakai `matchProduct` yang sama persis dengan `src/bot.js` — query order satu kata pendek seperti "order v60 3" tidak dikenali karena butuh ≥2 kata cocok dari nama produk. Ini cerminan setia `src/bot.js`, bukan bug.
 
 ## Cara ganti toko (pakai ulang untuk toko/klinik lain)
 
